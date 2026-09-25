@@ -20,7 +20,15 @@ from .word_export import export_profile
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 EXPORT_DIR = BASE_DIR / "exports"
-MANAGER_KEY = os.getenv("MANAGER_KEY", "dev-manager-key-change-me")
+def _read_render_secret(name: str) -> str:
+    path = Path("/etc/secrets") / name
+    try:
+        return path.read_text(encoding="utf-8").strip() if path.is_file() else ""
+    except OSError:
+        return ""
+
+
+MANAGER_KEY = os.getenv("MANAGER_KEY") or _read_render_secret("manager_key") or "dev-manager-key-change-me"
 MAX_PHOTO_BYTES = 5 * 1024 * 1024
 
 # These fields are copied from the approved Word template and are not shown on the public form.

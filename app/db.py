@@ -1,10 +1,19 @@
 import os
 from datetime import datetime
+from pathlib import Path
 
 from sqlalchemy import Boolean, DateTime, Integer, String, Text, UniqueConstraint, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/profiles.db")
+def _read_render_secret(name: str) -> str:
+    path = Path("/etc/secrets") / name
+    try:
+        return path.read_text(encoding="utf-8").strip() if path.is_file() else ""
+    except OSError:
+        return ""
+
+
+DATABASE_URL = os.getenv("DATABASE_URL") or _read_render_secret("database_url") or "sqlite:///./data/profiles.db"
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
 elif DATABASE_URL.startswith("postgresql://"):
