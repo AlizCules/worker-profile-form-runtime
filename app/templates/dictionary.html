@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Từ điển dịch{% endblock %}
+{% block content %}
+<div class="toolbar"><a href="/manage/{{ key }}">← Danh sách hồ sơ</a></div>
+<header class="hero"><h1>Từ điển Việt → Hoa</h1><p>Chỉ thêm các cách dịch đã được công ty xác nhận. Hồ sơ cũ sẽ tự lấy lại bản dịch mới khi xem hoặc xuất Word.</p></header>
+<form class="card dictionary-form" method="post">
+  <label>Loại
+    <select name="category">
+      <option value="province">Quê quán / tỉnh</option>
+      <option value="job">Nghề nghiệp</option>
+      <option value="country">Quốc gia</option>
+      <option value="work_description">Nội dung công việc</option>
+      <option value="education">Học lực</option>
+      <option value="religion">Tôn giáo</option>
+      <option value="marital_status">Hôn nhân</option>
+      <option value="name_token">Từng từ trong họ tên</option>
+    </select>
+  </label>
+  <label>Tiếng Việt<input name="vi" required placeholder="Ví dụ: Công nhân"></label>
+  <label>Tiếng Hoa<input name="zh" required placeholder="Bản dịch đã xác nhận"></label>
+  <button type="submit">Thêm / cập nhật</button>
+</form>
+<div class="card table-wrap dictionary-table">
+<table><thead><tr><th>Loại</th><th>Tiếng Việt</th><th>Tiếng Hoa</th></tr></thead><tbody>
+{% for item in items %}<tr><td>{{ item.category }}</td><td>{{ item.vi }}</td><td>{{ item.zh }}</td></tr>{% endfor %}
+</tbody></table>
+</div>
+{% endblock %}

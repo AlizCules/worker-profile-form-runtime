@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ p.full_name_vi }}{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <a href="/manage/{{ key }}">← Danh sách</a>
+  <div class="actions">
+    <a class="button" href="/manage/{{ key }}/profile/{{ p.id }}/export">Xuất Word</a>
+    <form class="inline-form" method="post" action="/manage/{{ key }}/profile/{{ p.id }}/delete" onsubmit="return confirm('Xóa vĩnh viễn hồ sơ {{ p.full_name_vi }}?');">
+      <button class="danger" type="submit">Xóa hồ sơ</button>
+    </form>
+  </div>
+</div>
+<div class="card">
+  <h1>{{ p.full_name_vi }}</h1>
+  <p class="muted">Tên Hoa tự ánh xạ: <strong>{{ p.full_name_zh or 'CHƯA CÓ TRONG TỪ ĐIỂN' }}</strong></p>
+  <div class="detail-grid">
+    <div><span>Ngày sinh</span><strong>{{ p.birth_date }}</strong></div>
+    <div><span>Tuổi</span><strong>{{ p.age if p.age is not none else '—' }}</strong></div>
+    <div><span>Chiều cao</span><strong>{{ p.height_cm or '—' }}</strong></div>
+    <div><span>Cân nặng</span><strong>{{ p.weight_kg or '—' }}</strong></div>
+    <div><span>Quê quán</span><strong>{{ p.province_vi }} / {{ p.province_zh or 'chưa dịch' }}</strong></div>
+    <div><span>Học lực</span><strong>{{ p.education_vi }} / {{ p.education_zh or 'chưa dịch' }}</strong></div>
+    <div><span>Tôn giáo</span><strong>Không / 無 (cố định theo mẫu)</strong></div>
+    <div><span>Ngoại ngữ</span><strong>Tiếng Hoa - Biết sơ (cố định theo mẫu)</strong></div>
+    <div><span>Nghề cha</span><strong>{{ p.father_job_vi }} / {{ p.father_job_zh or 'chưa dịch' }}</strong></div>
+    <div><span>Nghề mẹ</span><strong>{{ p.mother_job_vi }} / {{ p.mother_job_zh or 'chưa dịch' }}</strong></div>
+    <div><span>Nghề vợ/chồng</span><strong>{{ p.spouse_job_vi or '—' }} / {{ p.spouse_job_zh or '—' }}</strong></div>
+    <div><span>Nơi làm việc</span><strong>{{ p.work_country_vi }} / {{ p.work_country_zh or 'chưa dịch' }}</strong></div>
+    <div><span>Công việc</span><strong>{{ p.work_description_vi }} / {{ p.work_description_zh or 'chưa dịch' }}</strong></div>
+  </div>
+</div>
+{% endblock %}

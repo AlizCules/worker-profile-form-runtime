@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Danh sách hồ sơ{% endblock %}
+{% block content %}
+<header class="hero">
+  <div class="toolbar">
+    <div><h1>Danh sách hồ sơ</h1><p>Trang dành cho người giữ đường link quản lý.</p></div>
+    <a class="button" href="/manage/{{ key }}/dictionary">Từ điển dịch</a>
+  </div>
+</header>
+<form class="search" method="get">
+  <input name="q" value="{{ q }}" placeholder="Tìm theo họ tên, quê quán hoặc mã">
+  <button>Tìm</button>
+</form>
+<div class="card table-wrap">
+<table>
+  <thead><tr><th>ID</th><th>Mã</th><th>Họ tên</th><th>Quê quán</th><th>Ngày tạo</th><th>Thao tác</th></tr></thead>
+  <tbody>
+  {% for p in profiles %}
+    <tr>
+      <td>{{ p.id }}</td>
+      <td>{{ p.code }}</td>
+      <td>{{ p.full_name_vi }}</td>
+      <td>{{ p.province_vi }}</td>
+      <td>{{ p.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+      <td class="actions">
+        <a href="/manage/{{ key }}/profile/{{ p.id }}">Xem</a>
+        <a href="/manage/{{ key }}/profile/{{ p.id }}/export">Xuất Word</a>
+        <form class="inline-form" method="post" action="/manage/{{ key }}/profile/{{ p.id }}/delete" onsubmit="return confirm('Xóa vĩnh viễn hồ sơ {{ p.full_name_vi }}?');">
+          <button class="danger-link" type="submit">Xóa</button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6">Chưa có hồ sơ.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

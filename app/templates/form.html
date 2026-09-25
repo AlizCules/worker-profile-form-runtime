@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Nhập hồ sơ lao động{% endblock %}
+{% block content %}
+<header class="hero">
+  <h1>Nhập hồ sơ lao động</h1>
+  <p>Chỉ nhập các thông tin thay đổi. Phần ngoại ngữ và tôn giáo được giữ nguyên theo mẫu Word gốc.</p>
+</header>
+<form class="card form-grid" action="/submit" method="post" enctype="multipart/form-data">
+  <h2>Thông tin cá nhân</h2>
+  <label>Mã hồ sơ<input name="code" value="MS"></label>
+  <label class="wide">Họ và tên<input name="full_name_vi" placeholder="NGUYỄN VĂN A" required></label>
+  <label>Ngày sinh<input type="date" name="birth_date"></label>
+  <label>Chiều cao (cm)<input type="number" name="height_cm" min="0"></label>
+  <label>Cân nặng (kg)<input type="number" name="weight_kg" min="0"></label>
+  <label>Học lực<input name="education_vi" value="Cấp III" list="education-list"></label>
+  <label>Tình trạng hôn nhân<input name="marital_status_vi" value="Độc Thân" list="marital-list"></label>
+  <label>Quê quán<input name="province_vi" value="TỈNH DAK LAK" list="province-list"></label>
+  <label class="wide">Ảnh chân dung (không bắt buộc, tối đa 5 MB)<input type="file" name="photo" accept="image/png,image/jpeg"></label>
+
+  <div class="fixed-note wide">
+    <strong>Thông tin cố định theo mẫu:</strong> Tôn giáo = Không; Ngoại ngữ = Tiếng Hoa, Biết sơ; không học tại trung tâm.
+  </div>
+
+  <h2>Gia đình</h2>
+  <label>Số người con<input type="number" name="children_count" min="0"></label>
+  <label>Con trai<input type="number" name="sons_count" min="0"></label>
+  <label>Con gái<input type="number" name="daughters_count" min="0"></label>
+
+  <label>Họ tên cha<input name="father_name"></label>
+  <label>Năm sinh cha<input type="number" name="father_birth_year"></label>
+  <label>Nghề cha
+    <select name="father_job_type" class="job-type" data-other-target="father_job_other" required>
+      <option value="">-- Chọn --</option>
+      <option value="agriculture">Nông nghiệp</option>
+      <option value="industry">Công nghiệp</option>
+      <option value="other">Khác</option>
+    </select>
+  </label>
+  <label class="wide job-other hidden" id="father_job_other_wrap">Nghề khác của cha<input name="father_job_other" id="father_job_other" placeholder="Nhập nghề bằng tiếng Việt"></label>
+
+  <label>Họ tên mẹ<input name="mother_name"></label>
+  <label>Năm sinh mẹ<input type="number" name="mother_birth_year"></label>
+  <label>Nghề mẹ
+    <select name="mother_job_type" class="job-type" data-other-target="mother_job_other" required>
+      <option value="">-- Chọn --</option>
+      <option value="agriculture">Nông nghiệp</option>
+      <option value="industry">Công nghiệp</option>
+      <option value="other">Khác</option>
+    </select>
+  </label>
+  <label class="wide job-other hidden" id="mother_job_other_wrap">Nghề khác của mẹ<input name="mother_job_other" id="mother_job_other" placeholder="Nhập nghề bằng tiếng Việt"></label>
+
+  <label>Họ tên vợ/chồng<input name="spouse_name"></label>
+  <label>Năm sinh vợ/chồng<input type="number" name="spouse_birth_year"></label>
+  <label>Nghề vợ/chồng
+    <select name="spouse_job_type" class="job-type" data-other-target="spouse_job_other">
+      <option value="">-- Không có / Chưa chọn --</option>
+      <option value="agriculture">Nông nghiệp</option>
+      <option value="industry">Công nghiệp</option>
+      <option value="other">Khác</option>
+    </select>
+  </label>
+  <label class="wide job-other hidden" id="spouse_job_other_wrap">Nghề khác của vợ/chồng<input name="spouse_job_other" id="spouse_job_other" placeholder="Nhập nghề bằng tiếng Việt"></label>
+
+  <label>Số anh chị em<input type="number" name="siblings_count" min="0"></label>
+  <label>Xếp thứ<input type="number" name="birth_order" min="1"></label>
+  <label class="check"><input type="checkbox" name="relatives_in_taiwan" value="1"> Có người thân tại Đài Loan</label>
+
+  <h2>Kinh nghiệm làm việc</h2>
+  <label>Nơi làm việc<input name="work_country_vi" value="Việt Nam" list="country-list"></label>
+  <label>Thời gian<input name="work_period" placeholder="2022-2026"></label>
+  <label class="wide">Nội dung công việc<input name="work_description_vi" value="Làm nông" list="work-list"></label>
+  <label class="check"><input type="checkbox" name="taiwan_work_experience" value="1"> Có kinh nghiệm làm việc tại Đài Loan</label>
+
+  <h2>Giấy tờ & thông tin khác</h2>
+  <label class="check"><input type="checkbox" name="has_passport" value="1"> Hộ chiếu</label>
+  <label class="check"><input type="checkbox" name="has_judicial_record" value="1"> LL Tư pháp</label>
+  <label class="check"><input type="checkbox" name="has_health_exam" value="1"> Sức khoẻ</label>
+  <label class="check"><input type="checkbox" name="smoking" value="1"> Hút thuốc</label>
+  <label class="check"><input type="checkbox" name="alcohol" value="1"> Uống rượu</label>
+  <label class="check"><input type="checkbox" name="color_blind" value="1"> Mù màu</label>
+  <label class="check"><input type="checkbox" name="tattoos" value="1"> Xăm trổ</label>
+  <label class="check"><input type="checkbox" name="habit" value="1"> Thói quen đặc biệt</label>
+
+  <datalist id="education-list"><option value="Cấp III"></datalist>
+  <datalist id="marital-list"><option value="Độc Thân"></datalist>
+  <datalist id="province-list"><option value="TỈNH DAK LAK"><option value="Đắk Lắk"></datalist>
+  <datalist id="country-list"><option value="Việt Nam"></datalist>
+  <datalist id="work-list"><option value="Làm nông"></datalist>
+  <button class="primary wide" type="submit">Gửi hồ sơ</button>
+</form>
+<script>
+  function updateJobOther(select) {
+    const inputId = select.dataset.otherTarget;
+    const input = document.getElementById(inputId);
+    const wrap = document.getElementById(inputId + '_wrap');
+    const show = select.value === 'other';
+    wrap.classList.toggle('hidden', !show);
+    input.required = show;
+    if (!show) input.value = '';
+  }
+  document.querySelectorAll('.job-type').forEach((select) => {
+    select.addEventListener('change', () => updateJobOther(select));
+    updateJobOther(select);
+  });
+</script>
+{% endblock %}
