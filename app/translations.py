@@ -59,3 +59,34 @@ def translate_name(db, full_name: str | None) -> str:
             return ""
         converted.append(item.zh)
     return "".join(converted)
+
+
+
+def build_translation_map(items) -> dict[tuple[str, str], str]:
+    mapping: dict[tuple[str, str], str] = {}
+    for item in items:
+        if isinstance(item, dict):
+            category, vi, zh = item.get("category", ""), item.get("vi", ""), item.get("zh", "")
+        else:
+            category, vi, zh = item.category, item.vi, item.zh
+        if category and vi:
+            mapping[(str(category), str(vi).strip())] = str(zh or "")
+    return mapping
+
+
+def translate_from_map(mapping: dict[tuple[str, str], str], category: str, value: str | None) -> str:
+    if not value:
+        return ""
+    return mapping.get((category, value.strip()), "")
+
+
+def translate_name_from_map(mapping: dict[tuple[str, str], str], full_name: str | None) -> str:
+    if not full_name:
+        return ""
+    converted = []
+    for token in [t for t in full_name.upper().strip().split() if t]:
+        zh = mapping.get(("name_token", token), "")
+        if not zh:
+            return ""
+        converted.append(zh)
+    return "".join(converted)

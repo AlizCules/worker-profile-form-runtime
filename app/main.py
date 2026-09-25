@@ -14,8 +14,16 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import or_, select
 from starlette.background import BackgroundTask
 
+from . import remote_store
 from .db import Profile, SessionLocal, Translation, init_db
-from .translations import seed_translations, translate, translate_name
+from .translations import (
+    build_translation_map,
+    seed_translations,
+    translate,
+    translate_from_map,
+    translate_name,
+    translate_name_from_map,
+)
 from .word_export import export_profile
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -38,10 +46,13 @@ FIXED_LANGUAGE_TAIWANESE = False
 FIXED_LANGUAGE_LEVEL = "basic"
 FIXED_STUDIED_AT_CENTER = False
 
+REMOTE_STORE = remote_store.enabled()
+
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
-init_db()
-with SessionLocal() as _db:
-    seed_translations(_db)
+if not REMOTE_STORE:
+    init_db()
+    with SessionLocal() as _db:
+        seed_translations(_db)
 
 app = FastAPI(title="Worker Profile Form")
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "app" / "static")), name="static")
@@ -84,6 +95,10 @@ def _slug(text: str) -> str:
 
 
 def _manager_guard(key: str):
+    if REMOTE_STORE:
+        if not remote_store.validate_manager(key):
+            raise HTTPException(status_code=404, detail="Not found")
+        return
     if key != MANAGER_KEY:
         raise HTTPException(status_code=404, detail="Not found")
 
@@ -115,9 +130,9 @@ def _photo_to_data_uri(photo: UploadFile | None, raw: bytes) -> str:
     return f"data:{mime};base64,{encoded}"
 
 
-def _refresh_translations(db, p: Profile):
+def _refresh_translations(db, p):
     """Re-apply the current approved dictionary before preview/export."""
-    mapping = [
+    fields = [
         ("education_zh", "education", p.education_vi),
         ("religion_zh", "religion", p.religion_vi),
         ("marital_status_zh", "marital_status", p.marital_status_vi),
@@ -128,8 +143,15 @@ def _refresh_translations(db, p: Profile):
         ("work_country_zh", "country", p.work_country_vi),
         ("work_description_zh", "work_description", p.work_description_vi),
     ]
+    if REMOTE_STORE:
+        mapping = build_translation_map(remote_store.list_translations())
+        p.full_name_zh = translate_name_from_map(mapping, p.full_name_vi)
+        for attr, category, vi in fields:
+            setattr(p, attr, translate_from_map(mapping, category, vi))
+        return
+
     p.full_name_zh = translate_name(db, p.full_name_vi)
-    for attr, category, vi in mapping:
+    for attr, category, vi in fields:
         setattr(p, attr, translate(db, category, vi))
     db.commit()
 
@@ -197,23 +219,33 @@ async def submit_profile(
     if spouse_job_type == "other" and not spouse_job_other.strip():
         raise HTTPException(400, "Vui lòng nhập nghề khác của vợ/chồng")
 
-    with SessionLocal() as db:
-        profile = Profile(
+    db = None
+    try:
+        if REMOTE_STORE:
+            translation_map = build_translation_map(remote_store.list_translations())
+            tr = lambda category, value: translate_from_map(translation_map, category, value)
+            tr_name = lambda value: translate_name_from_map(translation_map, value)
+        else:
+            db = SessionLocal()
+            tr = lambda category, value: translate(db, category, value)
+            tr_name = lambda value: translate_name(db, value)
+
+        values = dict(
             code=code.strip() or "MS",
             full_name_vi=full_name_vi.strip().upper(),
-            full_name_zh=translate_name(db, full_name_vi),
+            full_name_zh=tr_name(full_name_vi),
             birth_date=birth_date_fmt,
             age=_calc_age(birth_date_fmt),
             height_cm=_to_int(height_cm),
             weight_kg=_to_int(weight_kg),
             education_vi=education_vi.strip(),
-            education_zh=translate(db, "education", education_vi),
+            education_zh=tr("education", education_vi),
             religion_vi=FIXED_RELIGION_VI,
-            religion_zh=translate(db, "religion", FIXED_RELIGION_VI),
+            religion_zh=tr("religion", FIXED_RELIGION_VI),
             marital_status_vi=marital_status_vi.strip(),
-            marital_status_zh=translate(db, "marital_status", marital_status_vi),
+            marital_status_zh=tr("marital_status", marital_status_vi),
             province_vi=province_vi.strip(),
-            province_zh=translate(db, "province", province_vi),
+            province_zh=tr("province", province_vi),
             language_chinese=FIXED_LANGUAGE_CHINESE,
             language_taiwanese=FIXED_LANGUAGE_TAIWANESE,
             language_level=FIXED_LANGUAGE_LEVEL,
@@ -224,23 +256,23 @@ async def submit_profile(
             father_name=father_name.strip().upper(),
             father_birth_year=_to_int(father_birth_year),
             father_job_vi=father_job_vi,
-            father_job_zh=translate(db, "job", father_job_vi),
+            father_job_zh=tr("job", father_job_vi),
             mother_name=mother_name.strip().upper(),
             mother_birth_year=_to_int(mother_birth_year),
             mother_job_vi=mother_job_vi,
-            mother_job_zh=translate(db, "job", mother_job_vi),
+            mother_job_zh=tr("job", mother_job_vi),
             spouse_name=spouse_name.strip().upper(),
             spouse_birth_year=_to_int(spouse_birth_year),
             spouse_job_vi=spouse_job_vi,
-            spouse_job_zh=translate(db, "job", spouse_job_vi),
+            spouse_job_zh=tr("job", spouse_job_vi),
             siblings_count=_to_int(siblings_count),
             birth_order=_to_int(birth_order),
             relatives_in_taiwan=_bool(relatives_in_taiwan),
             work_country_vi=work_country_vi.strip(),
-            work_country_zh=translate(db, "country", work_country_vi),
+            work_country_zh=tr("country", work_country_vi),
             work_period=work_period.strip(),
             work_description_vi=work_description_vi.strip(),
-            work_description_zh=translate(db, "work_description", work_description_vi),
+            work_description_zh=tr("work_description", work_description_vi),
             taiwan_work_experience=_bool(taiwan_work_experience),
             has_passport=_bool(has_passport),
             has_judicial_record=_bool(has_judicial_record),
@@ -253,10 +285,18 @@ async def submit_profile(
             form_date=date.today().strftime("%d/%m/%Y"),
             photo_path=photo_value,
         )
-        db.add(profile)
-        db.commit()
-        db.refresh(profile)
-        profile_id = profile.id
+
+        if REMOTE_STORE:
+            profile_id = remote_store.create_profile(values)
+        else:
+            profile = Profile(**values)
+            db.add(profile)
+            db.commit()
+            db.refresh(profile)
+            profile_id = profile.id
+    finally:
+        if db is not None:
+            db.close()
     return RedirectResponse(url=f"/success?id={profile_id}", status_code=303)
 
 
@@ -268,18 +308,21 @@ def success_page(request: Request, id: int):
 @app.get("/manage/{key}", response_class=HTMLResponse)
 def manage(request: Request, key: str, q: str = ""):
     _manager_guard(key)
-    with SessionLocal() as db:
-        stmt = select(Profile).order_by(Profile.id.desc())
-        if q.strip():
-            like = f"%{q.strip()}%"
-            stmt = stmt.where(
-                or_(
-                    Profile.full_name_vi.ilike(like),
-                    Profile.province_vi.ilike(like),
-                    Profile.code.ilike(like),
+    if REMOTE_STORE:
+        profiles = remote_store.list_profiles(q, key)
+    else:
+        with SessionLocal() as db:
+            stmt = select(Profile).order_by(Profile.id.desc())
+            if q.strip():
+                like = f"%{q.strip()}%"
+                stmt = stmt.where(
+                    or_(
+                        Profile.full_name_vi.ilike(like),
+                        Profile.province_vi.ilike(like),
+                        Profile.code.ilike(like),
+                    )
                 )
-            )
-        profiles = list(db.scalars(stmt).all())
+            profiles = list(db.scalars(stmt).all())
     return templates.TemplateResponse(
         request=request,
         name="manage.html",
@@ -290,8 +333,11 @@ def manage(request: Request, key: str, q: str = ""):
 @app.get("/manage/{key}/dictionary", response_class=HTMLResponse)
 def dictionary_page(request: Request, key: str):
     _manager_guard(key)
-    with SessionLocal() as db:
-        items = list(db.scalars(select(Translation).order_by(Translation.category, Translation.vi)).all())
+    if REMOTE_STORE:
+        items = remote_store.list_translations()
+    else:
+        with SessionLocal() as db:
+            items = list(db.scalars(select(Translation).order_by(Translation.category, Translation.vi)).all())
     return templates.TemplateResponse(
         request=request,
         name="dictionary.html",
@@ -305,44 +351,62 @@ def dictionary_add(key: str, category: str = Form(...), vi: str = Form(...), zh:
     category, vi, zh = category.strip(), vi.strip(), zh.strip()
     if not category or not vi or not zh:
         raise HTTPException(400, "Thiếu dữ liệu từ điển")
-    with SessionLocal() as db:
-        item = db.scalar(select(Translation).where(Translation.category == category, Translation.vi == vi))
-        if item:
-            item.zh = zh
-        else:
-            db.add(Translation(category=category, vi=vi, zh=zh))
-        db.commit()
+    if REMOTE_STORE:
+        remote_store.upsert_translation(category, vi, zh, key)
+    else:
+        with SessionLocal() as db:
+            item = db.scalar(select(Translation).where(Translation.category == category, Translation.vi == vi))
+            if item:
+                item.zh = zh
+            else:
+                db.add(Translation(category=category, vi=vi, zh=zh))
+            db.commit()
     return RedirectResponse(url=f"/manage/{key}/dictionary", status_code=303)
 
 
 @app.get("/manage/{key}/profile/{profile_id}", response_class=HTMLResponse)
 def profile_detail(request: Request, key: str, profile_id: int):
     _manager_guard(key)
-    with SessionLocal() as db:
-        p = db.get(Profile, profile_id)
-        if not p:
+    if REMOTE_STORE:
+        try:
+            p = remote_store.get_profile(profile_id, key)
+        except remote_store.RemoteNotFound:
             raise HTTPException(404, "Không tìm thấy hồ sơ")
-        _refresh_translations(db, p)
-        db.refresh(p)
-        return templates.TemplateResponse(
-            request=request,
-            name="detail.html",
-            context={"p": p, "key": key},
-        )
+        _refresh_translations(None, p)
+    else:
+        with SessionLocal() as db:
+            p = db.get(Profile, profile_id)
+            if not p:
+                raise HTTPException(404, "Không tìm thấy hồ sơ")
+            _refresh_translations(db, p)
+            db.refresh(p)
+    return templates.TemplateResponse(
+        request=request,
+        name="detail.html",
+        context={"p": p, "key": key},
+    )
 
 
 @app.get("/manage/{key}/profile/{profile_id}/export")
 def export_word(key: str, profile_id: int):
     _manager_guard(key)
-    with SessionLocal() as db:
-        p = db.get(Profile, profile_id)
-        if not p:
+    if REMOTE_STORE:
+        try:
+            p = remote_store.get_profile(profile_id, key)
+        except remote_store.RemoteNotFound:
             raise HTTPException(404, "Không tìm thấy hồ sơ")
-        _refresh_translations(db, p)
-        db.refresh(p)
-        filename = f"{_slug(p.code)}_{_slug(p.full_name_vi)}_{_slug(p.birth_date[:4] if p.birth_date else '')}.docx"
-        output = EXPORT_DIR / f"{profile_id}_{filename}"
-        export_profile(p, output)
+        _refresh_translations(None, p)
+    else:
+        with SessionLocal() as db:
+            p = db.get(Profile, profile_id)
+            if not p:
+                raise HTTPException(404, "Không tìm thấy hồ sơ")
+            _refresh_translations(db, p)
+            db.refresh(p)
+
+    filename = f"{_slug(p.code)}_{_slug(p.full_name_vi)}_{_slug(p.birth_date[:4] if p.birth_date else '')}.docx"
+    output = EXPORT_DIR / f"{profile_id}_{filename}"
+    export_profile(p, output)
 
     def _cleanup():
         try:
@@ -361,24 +425,34 @@ def export_word(key: str, profile_id: int):
 @app.post("/manage/{key}/profile/{profile_id}/delete")
 def delete_profile(key: str, profile_id: int):
     _manager_guard(key)
-    with SessionLocal() as db:
-        p = db.get(Profile, profile_id)
-        if not p:
+    if REMOTE_STORE:
+        try:
+            remote_store.delete_profile(profile_id, key)
+        except remote_store.RemoteNotFound:
             raise HTTPException(404, "Không tìm thấy hồ sơ")
-        # Legacy local builds stored photos as file paths. Clean them up if they still exist.
-        legacy_photo = p.photo_path or ""
-        if legacy_photo and not legacy_photo.startswith("data:"):
-            try:
-                photo_file = Path(legacy_photo)
-                if photo_file.is_file():
-                    photo_file.unlink()
-            except Exception:
-                pass
-        db.delete(p)
-        db.commit()
+    else:
+        with SessionLocal() as db:
+            p = db.get(Profile, profile_id)
+            if not p:
+                raise HTTPException(404, "Không tìm thấy hồ sơ")
+            legacy_photo = p.photo_path or ""
+            if legacy_photo and not legacy_photo.startswith("data:"):
+                try:
+                    photo_file = Path(legacy_photo)
+                    if photo_file.is_file():
+                        photo_file.unlink()
+                except Exception:
+                    pass
+            db.delete(p)
+            db.commit()
     return RedirectResponse(url=f"/manage/{key}", status_code=303)
 
 
 @app.get("/health")
 def health():
-    return {"ok": True}
+    if REMOTE_STORE:
+        try:
+            return {"ok": remote_store.health(), "storage": "neon"}
+        except remote_store.RemoteStoreError:
+            return {"ok": False, "storage": "neon"}
+    return {"ok": True, "storage": "sqlite"}
